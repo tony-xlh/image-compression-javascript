@@ -12,6 +12,15 @@
     #canvas {
       display: none;
     }
+
+    .comparison {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .original {
+      margin-right: 1em;
+    }
   </style>
 </head>
 <body>
@@ -49,20 +58,26 @@
       </label>
     </div>
     <button id="compressButton">Compress</button>
-    <br/>
-    Original:
-    <div>
-      <img alt="" id="image"/>
+    <div class="comparison">
+      <div class="original">
+        <div>Original:</div>
+        <img alt="" id="image"/>
+      </div>
+      <div class="compressed">
+        <div>Compressed:</div>
+        <img alt="" id="imageCompressed"/>
+      </div>
     </div>
-    Compressed:
     <div>
-      <img alt="" id="imageCompressed"/>
+      Compression Rate:
+      <span id="compressionRate"></span>
     </div>
     <div>
       <canvas id="canvas"></canvas>
     </div>
   </div>
   <script>
+    let originalSize = 0;
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
     document.getElementById("compressButton").addEventListener("click",compress)
@@ -82,12 +97,10 @@
       context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => {
         console.log(blob);
+        const compressedSize = blob.size;
+        displayCompressionRate(compressedSize);
         const compressedImg = document.getElementById("imageCompressed");
         const url = URL.createObjectURL(blob);
-        compressedImg.onload = () => {
-          // no longer need to read the blob so it's revoked
-          URL.revokeObjectURL(url);
-        };
         compressedImg.src = url;
       },imageFormat,quality);
     }
@@ -100,16 +113,26 @@
       let file = files[0];
       let fileReader = new FileReader();
       fileReader.onload = function(e){
-        document.getElementById("image").src = e.target.result;
+        let blob = new Blob([fileReader.result]);
+        originalSize = blob.size;
+        let img = document.getElementById("image");
+        const url = URL.createObjectURL(blob);
+        img.src = url;
       };
       fileReader.onerror = function () {
         console.warn('oops, something went wrong.');
       };
-      fileReader.readAsDataURL(file);
+      fileReader.readAsArrayBuffer(file);
     }
 
     function updateQualityLabel(){
       document.getElementById("quality").innerText = document.getElementById("qualityInput").value; 
+    }
+
+    function displayCompressionRate(compressedSize){
+      let rate = compressedSize / originalSize;
+      console.log(rate);
+      document.getElementById("compressionRate").innerText = rate*100 + "%";
     }
   </script>
 </body>
