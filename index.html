@@ -18,9 +18,6 @@
   <div class="home">
     <h2>Image Compressor</h2>
     <input id="fileInput" type="file" onchange="fileSelected();"/>
-    <div>
-      <img alt="" id="image"/>
-    </div>
     <div class="options">
       <label>
         Color conversion:
@@ -32,16 +29,16 @@
       </label>
       <br/>
       <label>
-        Max resolution width:
+        Max resolution width (px):
         <input type="number" id="maxResWidthInput"/>
       </label>
       <br/>
       <label>
         Image format:
         <select id="imageFormatSelect">
-          <option>PNG</option>
-          <option>JPG</option>
-          <option>WebP</option>
+          <option value="image/png">PNG</option>
+          <option value="image/jpeg">JPG</option>
+          <option value="image/webp">WebP</option>
         </select>
       </label>
       <br/>
@@ -52,6 +49,15 @@
       </label>
     </div>
     <button id="compressButton">Compress</button>
+    <br/>
+    Original:
+    <div>
+      <img alt="" id="image"/>
+    </div>
+    Compressed:
+    <div>
+      <img alt="" id="imageCompressed"/>
+    </div>
     <div>
       <canvas id="canvas"></canvas>
     </div>
@@ -61,10 +67,29 @@
     let img = document.getElementById("image");
     document.getElementById("compressButton").addEventListener("click",compress)
     function compress(){
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
       let context = canvas.getContext('2d');
-      context.drawImage(img, 0, 0);
+      let maxWidth = document.getElementById("maxResWidthInput").value;
+      if (maxWidth && img.naturalWidth > maxWidth) {
+        width = maxWidth;
+        height = img.naturalHeight * maxWidth / img.naturalWidth;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      let imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
+      let quality = parseFloat(document.getElementById("qualityInput").value);
+      context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        console.log(blob);
+        const compressedImg = document.getElementById("imageCompressed");
+        const url = URL.createObjectURL(blob);
+        compressedImg.onload = () => {
+          // no longer need to read the blob so it's revoked
+          URL.revokeObjectURL(url);
+        };
+        compressedImg.src = url;
+      },imageFormat,quality);
     }
     function fileSelected(){
       let fileInput = document.getElementById("fileInput");
