@@ -95,6 +95,36 @@
       let imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
       let quality = parseFloat(document.getElementById("qualityInput").value);
       context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
+      
+      const colorConversion = document.getElementById("colorConversionSelect").selectedIndex;
+      if (colorConversion != 0) {
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data; //[r,g,b,a,...]
+        for (var i = 0; i < pixels.length; i += 4) {
+          const red = pixels[i];
+          const green = pixels[i + 1];
+          const blue = pixels[i + 2];
+          const grayscale = RGBToGrayScale(red, green, blue)
+          if (colorConversion === 1) {
+            pixels[i] = grayscale;
+            pixels[i + 1] = grayscale;
+            pixels[i + 2] = grayscale;
+          }else{
+            if (threshold(grayscale)) {
+              pixels[i] = 0;
+              pixels[i + 1] = 0;
+              pixels[i + 2] = 0;
+            }else{
+              pixels[i] = 255;
+              pixels[i + 1] = 255;
+              pixels[i + 2] = 255;
+            }
+          }
+        }
+        context.putImageData(imageData, 0, 0);
+      }
+     
+      
       canvas.toBlob((blob) => {
         console.log(blob);
         const compressedSize = blob.size;
@@ -133,6 +163,21 @@
       let rate = compressedSize / originalSize;
       console.log(rate);
       document.getElementById("compressionRate").innerText = rate*100 + "%";
+    }
+
+    function RGBToGrayScale(red,green,blue){
+      //return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+      return (red * 6966 + green * 23436 + blue * 2366) >> 15;
+    }
+
+    //return true if the value should be black. return false if the value should be white
+    function threshold(grayscale){
+      const thresholdValue = 127;
+      if (grayscale < thresholdValue) {
+        return true;
+      }else{
+        return false;
+      }
     }
   </script>
 </body>
