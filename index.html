@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Compressor</title>
+  <style>
+    img {
+      max-width: 450px;
+    }
+
+    #canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="home">
+    <h2>Image Compressor</h2>
+    <input id="fileInput" type="file" onchange="fileSelected();"/>
+    <div>
+      <img alt="" id="image"/>
+    </div>
+    <div class="options">
+      <label>
+        Color conversion:
+        <select id="colorConversionSelect">
+          <option>No conversion</option>
+          <option>Grayscale</option>
+          <option>Black & white</option>
+        </select>
+      </label>
+      <br/>
+      <label>
+        Max resolution width:
+        <input type="number" id="maxResWidthInput"/>
+      </label>
+      <br/>
+      <label>
+        Image format:
+        <select id="imageFormatSelect">
+          <option>PNG</option>
+          <option>JPG</option>
+          <option>WebP</option>
+        </select>
+      </label>
+      <br/>
+      <label>
+        Image quality:
+        <input type="range" id="qualityInput" step="0.1" min="0" max="1" value="1" onchange="updateQualityLabel()"/>
+        <span id="quality">1.0</span>
+      </label>
+    </div>
+    <button id="compressButton">Compress</button>
+    <div>
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+  <script>
+    let canvas = document.getElementById("canvas");
+    let img = document.getElementById("image");
+    document.getElementById("compressButton").addEventListener("click",compress)
+    function compress(){
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      let context = canvas.getContext('2d');
+      context.drawImage(img, 0, 0);
+    }
+    function fileSelected(){
+      let fileInput = document.getElementById("fileInput");
+      let files = fileInput.files;
+      if (files.length == 0) {
+        return;
+      }
+      let file = files[0];
+      let fileReader = new FileReader();
+      fileReader.onload = function(e){
+        document.getElementById("image").src = e.target.result;
+      };
+      fileReader.onerror = function () {
+        console.warn('oops, something went wrong.');
+      };
+      fileReader.readAsDataURL(file);
+    }
+
+    function updateQualityLabel(){
+      document.getElementById("quality").innerText = document.getElementById("qualityInput").value; 
+    }
+  </script>
+</body>
+</html>
