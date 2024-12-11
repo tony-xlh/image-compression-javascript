@@ -62,9 +62,9 @@
       <label>
         Color conversion:
         <select id="colorConversionSelect">
-          <option>No conversion</option>
-          <option>Grayscale</option>
-          <option>Black & white</option>
+          <option value="0">No conversion</option>
+          <option value="1">Grayscale</option>
+          <option value="2">Black & white</option>
         </select>
       </label>
       <br/>
@@ -122,53 +122,54 @@
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
     document.getElementById("compressButton").addEventListener("click",compress)
-    document.getElementById("testButton").addEventListener("click",compress)
+    document.getElementById("testButton").addEventListener("click",test)
     
-    function getCompressedBlob(imageFormat,quality,colorConversion){
-      return new Promise((resolve, reject) => {
-        let width = img.naturalWidth;
-        let height = img.naturalHeight;
-        let context = canvas.getContext('2d');
-        let maxWidth = document.getElementById("maxResWidthInput").value;
-        if (maxWidth && img.naturalWidth > maxWidth) {
-          width = maxWidth;
-          height = img.naturalHeight * maxWidth / img.naturalWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        
-        context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
-        
-        if (colorConversion != 0) {
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const pixels = imageData.data; //[r,g,b,a,...]
-          for (var i = 0; i < pixels.length; i += 4) {
-            const red = pixels[i];
-            const green = pixels[i + 1];
-            const blue = pixels[i + 2];
-            const grayscale = RGBToGrayScale(red, green, blue)
-            if (colorConversion === 1) {
-              pixels[i] = grayscale;
-              pixels[i + 1] = grayscale;
-              pixels[i + 2] = grayscale;
+    function drawImageWithColorConverted(colorConversion){
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
+      let context = canvas.getContext('2d');
+      let maxWidth = document.getElementById("maxResWidthInput").value;
+      if (maxWidth && img.naturalWidth > maxWidth) {
+        width = maxWidth;
+        height = img.naturalHeight * maxWidth / img.naturalWidth;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      
+      context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
+      
+      if (colorConversion != "0") {
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data; //[r,g,b,a,...]
+        for (var i = 0; i < pixels.length; i += 4) {
+          const red = pixels[i];
+          const green = pixels[i + 1];
+          const blue = pixels[i + 2];
+          const grayscale = RGBToGrayScale(red, green, blue)
+          if (colorConversion === "1") {
+            pixels[i] = grayscale;
+            pixels[i + 1] = grayscale;
+            pixels[i + 2] = grayscale;
+          }else{
+            if (threshold(grayscale)) {
+              pixels[i] = 0;
+              pixels[i + 1] = 0;
+              pixels[i + 2] = 0;
             }else{
-              if (threshold(grayscale)) {
-                pixels[i] = 0;
-                pixels[i + 1] = 0;
-                pixels[i + 2] = 0;
-              }else{
-                pixels[i] = 255;
-                pixels[i + 1] = 255;
-                pixels[i + 2] = 255;
-              }
+              pixels[i] = 255;
+              pixels[i + 1] = 255;
+              pixels[i + 2] = 255;
             }
           }
-          context.putImageData(imageData, 0, 0);
         }
+        context.putImageData(imageData, 0, 0);
+      }
+    }
 
+    function getCompressedBlob(imageFormat,quality){
+      return new Promise((resolve, reject) => {
         if (imageFormat.indexOf("pdf")!= -1) {
           canvas.toBlob(async (blob) => {
-            console.log(imageFormat);
             const pdfBlob = await compressUsingDDV(blob,imageFormat,quality);
             resolve(pdfBlob);
           }, "image/png", 1.0);
@@ -209,14 +210,44 @@
     async function compress(){
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
       const quality = parseFloat(document.getElementById("qualityInput").value);
-      const colorConversion = document.getElementById("colorConversionSelect").selectedIndex;
-      const blob = await getCompressedBlob(imageFormat,quality,colorConversion);
+      const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
+      drawImageWithColorConverted(colorConversion);
+      const blob = await getCompressedBlob(imageFormat,quality);
       const isPDF = imageFormat.indexOf("pdf") != -1;
       displayCompressedImage(isPDF,blob);
     }
 
-    function test(){
-
+    async function test(){
+      if (!doc) {
+        await loadDDV();
+      }
+      showProgress("Testing...");
+      const data = [];
+      const qualityArray = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0];
+      const imageFormatSelect = document.getElementById("imageFormatSelect");
+      const colorConversionSelect = document.getElementById("colorConversionSelect");
+      for (let i = 0; i < colorConversionSelect.options.length; i++) {
+        const colorConversionOption = colorConversionSelect.options[i];
+        drawImageWithColorConverted(colorConversionOption.value);
+        for (let j = 0; j < imageFormatSelect.options.length; j++) {
+          const formatOption = imageFormatSelect.options[j];
+          for (const quality of qualityArray) {
+            showProgress([formatOption.innerText,quality,colorConversionOption.innerText].join(" "));
+            const startTime = new Date().getTime();
+            const blob = await getCompressedBlob(formatOption.value,quality);
+            const endTime = new Date().getTime();
+            const row = [];
+            row.push(colorConversionOption.value);
+            row.push(formatOption.value);
+            row.push(quality);
+            row.push(endTime - startTime);
+            row.push(blob.size);
+            data.push(row);
+          }
+        }
+      }
+      hideProgress();
+      console.log(data);
     }
 
     async function compressUsingDDV(blob,imageFormat,quality){
