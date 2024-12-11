@@ -13,6 +13,12 @@ It can run a batch test to get an idea of how those aspects can impact the final
 
 [Online demo](https://tony-xlh.github.io/image-compression-javascript/)
 
+## Usage
+
+We can compress images to save storage and improve the performance of uploading an image.
+
+Document scanning and server-side barcode scanning can benefit from this.
+
 ## Color Conversion Modes Supported
 
 * Grayscale
