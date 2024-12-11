@@ -113,6 +113,7 @@
     <div>
       <canvas id="canvas"></canvas>
     </div>
+    <div id="testResult"></div>
     <div class="modal progress-modal"></div>
   </div>
   <script>
@@ -224,6 +225,7 @@
       showProgress("Testing...");
       const data = [];
       const qualityArray = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0];
+      //const qualityArray = [1.0];
       const imageFormatSelect = document.getElementById("imageFormatSelect");
       const colorConversionSelect = document.getElementById("colorConversionSelect");
       for (let i = 0; i < colorConversionSelect.options.length; i++) {
@@ -237,17 +239,48 @@
             const blob = await getCompressedBlob(formatOption.value,quality);
             const endTime = new Date().getTime();
             const row = [];
-            row.push(colorConversionOption.value);
+            row.push(colorConversionOption.innerText);
             row.push(formatOption.value);
             row.push(quality);
-            row.push(endTime - startTime);
-            row.push(blob.size);
+            row.push((blob.size / 1000).toFixed(2) + "KB");
+            row.push((endTime - startTime) + "ms");
+            let rate = (blob.size / originalSize * 100).toFixed(2) + "%";
+            row.push(rate);
             data.push(row);
           }
         }
       }
       hideProgress();
       console.log(data);
+      displayTestResult(data);
+    }
+
+    function displayTestResult(rows){
+      let rowsHTML = "";
+      rows.forEach(row => {
+        let cells = "";
+        row.forEach(item => {
+          cells += `<td>${item}</td>`
+        });
+        rowsHTML += `<tr>${cells}</tr>`;
+      });
+      let table = `
+      <table>
+        <thead>
+          <tr>
+            <th>Color Conversion</th>
+            <th>Image Format</th>
+            <th>Quality</th>
+            <th>Size</th>
+            <th>Time Elapsed</th>
+            <th>Compression Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHTML}
+        </tbody>
+      </table>`
+      document.getElementById("testResult").innerHTML = table;
     }
 
     async function compressUsingDDV(blob,imageFormat,quality){
