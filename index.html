@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image Compressor</title>
+  <script src="https://unpkg.com/pdfobject"></script>
   <style>
     img {
-      max-width: 450px;
+      max-width: 480px;
+      max-height: 480px;
     }
 
     #canvas {
@@ -20,6 +22,35 @@
 
     .original {
       margin-right: 1em;
+    }
+
+    .modal {
+      display: flex;
+      align-items: flex-start;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 250px;
+      min-height: 150px;
+      border: 1px solid gray;
+      border-radius: 5px;
+      background: white;
+      z-index: 99;
+      padding: 10px;
+      visibility: hidden;
+    }
+
+    .progress-modal {
+      align-items: center;
+      text-align: center;
+      justify-content: center;
+      min-height: 50px;
+      max-height: 100px;
+    }
+
+    .progress-modal.active {
+      visibility: inherit;
     }
   </style>
 </head>
@@ -48,6 +79,11 @@
           <option value="image/png">PNG</option>
           <option value="image/jpeg">JPG</option>
           <option value="image/webp">WebP</option>
+          <option value="pdf/jbig2">JBig2</option>
+          <option value="pdf/fax4">Fax4</option>
+          <option value="pdf/jp2000">JP2000</option>
+          <option value="pdf/lzw">LZW</option>
+          <option value="pdf/auto">Auto</option>
         </select>
       </label>
       <br/>
@@ -65,6 +101,7 @@
       </div>
       <div class="compressed">
         <div>Compressed:</div>
+        <div id="pdf"></div>
         <img alt="" id="imageCompressed"/>
       </div>
     </div>
@@ -75,12 +112,16 @@
     <div>
       <canvas id="canvas"></canvas>
     </div>
+    <div class="modal progress-modal"></div>
   </div>
   <script>
+    let license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==";
+    let doc;
     let originalSize = 0;
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
     document.getElementById("compressButton").addEventListener("click",compress)
+    
     function compress(){
       let width = img.naturalWidth;
       let height = img.naturalHeight;
@@ -123,17 +164,48 @@
         }
         context.putImageData(imageData, 0, 0);
       }
-     
-      
-      canvas.toBlob((blob) => {
-        console.log(blob);
-        const compressedSize = blob.size;
-        displayCompressionRate(compressedSize);
-        const compressedImg = document.getElementById("imageCompressed");
-        const url = URL.createObjectURL(blob);
-        compressedImg.src = url;
-      },imageFormat,quality);
+      const compressedImg = document.getElementById("imageCompressed");
+      const pdfContainer = document.getElementById("pdf");
+      if (imageFormat.indexOf("pdf")!= -1) {
+        canvas.toBlob(async (blob) => {
+          console.log(imageFormat);
+          const pdfBlob = await compressUsingDDV(blob,imageFormat,quality);
+          console.log(pdfBlob);
+          const compressedSize = pdfBlob.size;
+          displayCompressionRate(compressedSize);
+          compressedImg.style.display = "none";
+          pdfContainer.style.display = "block";
+          const url = URL.createObjectURL(pdfBlob);
+          pdfContainer.style.width = image.clientWidth + "px";
+          pdfContainer.style.height = image.clientHeight + "px";
+          var options = {
+              title: "My embedded PDF",
+              pdfOpenParams: { view: 'Fit', page: '1' }
+          };
+          PDFObject.embed(url, "#pdf", options);
+        }, imageFormat, quality);
+      }else{
+        canvas.toBlob((blob) => {
+          const compressedSize = blob.size;
+          displayCompressionRate(compressedSize);
+          compressedImg.style.display = "block";
+          pdfContainer.style.display = "none";
+          const url = URL.createObjectURL(blob);
+          compressedImg.src = url;
+        }, imageFormat, quality);
+      }
     }
+
+    async function compressUsingDDV(blob,imageFormat,quality){
+      if (!doc) {
+        await loadDDV();
+      }
+      doc.deleteAllPages()
+      await doc.loadSource(blob);
+      return await doc.saveToPdf([0],{compression:imageFormat,quality:quality*100});
+    }
+
+
     function fileSelected(){
       let fileInput = document.getElementById("fileInput");
       let files = fileInput.files;
@@ -178,6 +250,75 @@
       }else{
         return false;
       }
+    }
+
+    async function loadDDV(){
+      showProgress("Loading Dynamsoft Document Viewer...");
+      await loadLibrary("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/ddv.js","text/javascript");
+      await loadStyle("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/ddv.css");
+      await initDDV();
+      hideProgress();
+    }
+
+    async function initDDV(){
+      Dynamsoft.DDV.Core.license = license;
+      Dynamsoft.DDV.Core.engineResourcePath = "https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/engine";// Lead to a folder containing the distributed WASM files
+      await Dynamsoft.DDV.Core.init();
+      const docManager = Dynamsoft.DDV.documentManager;
+      doc = docManager.createDocument();
+    }
+
+    function loadLibrary(src,type,id,data){
+      return new Promise(function (resolve, reject) {
+        let scriptEle = document.createElement("script");
+        scriptEle.setAttribute("type", type);
+        scriptEle.setAttribute("src", src);
+        if (id) {
+          scriptEle.id = id;
+        }
+        if (data) {
+          for (let key in data) {
+            scriptEle.setAttribute(key, data[key]);
+          }
+        }
+        document.body.appendChild(scriptEle);
+        scriptEle.addEventListener("load", () => {
+          console.log(src+" loaded")
+          resolve(true);
+        });
+        scriptEle.addEventListener("error", (ev) => {
+          console.log("Error on loading "+src, ev);
+          reject(ev);
+        });
+      });
+    }
+
+    function loadStyle(url) {
+      return new Promise(function (resolve, reject) {
+        let linkEle = document.createElement('link')
+        linkEle.type = 'text/css'
+        linkEle.rel = 'stylesheet'
+        linkEle.href = url
+        let head = document.getElementsByTagName('head')[0]
+        head.appendChild(linkEle)
+        linkEle.addEventListener("load", () => {
+          console.log(url+" loaded")
+          resolve(true);
+        });
+        linkEle.addEventListener("error", (ev) => {
+          console.log("Error on loading "+url, ev);
+          reject(ev);
+        });
+      });
+    }
+
+    function showProgress(info){
+      document.getElementsByClassName("progress-modal")[0].classList.add("active");
+      document.getElementsByClassName("progress-modal")[0].innerText = info;
+    }
+
+    function hideProgress(){
+      document.getElementsByClassName("progress-modal")[0].classList.remove("active");
     }
   </script>
 </body>
