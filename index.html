@@ -94,6 +94,7 @@
       </label>
     </div>
     <button id="compressButton">Compress</button>
+    <button id="testButton">Run Test</button>
     <div class="comparison">
       <div class="original">
         <div>Original:</div>
@@ -121,79 +122,101 @@
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
     document.getElementById("compressButton").addEventListener("click",compress)
+    document.getElementById("testButton").addEventListener("click",compress)
     
-    function compress(){
-      let width = img.naturalWidth;
-      let height = img.naturalHeight;
-      let context = canvas.getContext('2d');
-      let maxWidth = document.getElementById("maxResWidthInput").value;
-      if (maxWidth && img.naturalWidth > maxWidth) {
-        width = maxWidth;
-        height = img.naturalHeight * maxWidth / img.naturalWidth;
-      }
-      canvas.width = width;
-      canvas.height = height;
-      let imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
-      let quality = parseFloat(document.getElementById("qualityInput").value);
-      context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
-      
-      const colorConversion = document.getElementById("colorConversionSelect").selectedIndex;
-      if (colorConversion != 0) {
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data; //[r,g,b,a,...]
-        for (var i = 0; i < pixels.length; i += 4) {
-          const red = pixels[i];
-          const green = pixels[i + 1];
-          const blue = pixels[i + 2];
-          const grayscale = RGBToGrayScale(red, green, blue)
-          if (colorConversion === 1) {
-            pixels[i] = grayscale;
-            pixels[i + 1] = grayscale;
-            pixels[i + 2] = grayscale;
-          }else{
-            if (threshold(grayscale)) {
-              pixels[i] = 0;
-              pixels[i + 1] = 0;
-              pixels[i + 2] = 0;
+    function getCompressedBlob(imageFormat,quality,colorConversion){
+      return new Promise((resolve, reject) => {
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+        let context = canvas.getContext('2d');
+        let maxWidth = document.getElementById("maxResWidthInput").value;
+        if (maxWidth && img.naturalWidth > maxWidth) {
+          width = maxWidth;
+          height = img.naturalHeight * maxWidth / img.naturalWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        
+        context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
+        
+        if (colorConversion != 0) {
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const pixels = imageData.data; //[r,g,b,a,...]
+          for (var i = 0; i < pixels.length; i += 4) {
+            const red = pixels[i];
+            const green = pixels[i + 1];
+            const blue = pixels[i + 2];
+            const grayscale = RGBToGrayScale(red, green, blue)
+            if (colorConversion === 1) {
+              pixels[i] = grayscale;
+              pixels[i + 1] = grayscale;
+              pixels[i + 2] = grayscale;
             }else{
-              pixels[i] = 255;
-              pixels[i + 1] = 255;
-              pixels[i + 2] = 255;
+              if (threshold(grayscale)) {
+                pixels[i] = 0;
+                pixels[i + 1] = 0;
+                pixels[i + 2] = 0;
+              }else{
+                pixels[i] = 255;
+                pixels[i + 1] = 255;
+                pixels[i + 2] = 255;
+              }
             }
           }
+          context.putImageData(imageData, 0, 0);
         }
-        context.putImageData(imageData, 0, 0);
-      }
+
+        if (imageFormat.indexOf("pdf")!= -1) {
+          canvas.toBlob(async (blob) => {
+            console.log(imageFormat);
+            const pdfBlob = await compressUsingDDV(blob,imageFormat,quality);
+            resolve(pdfBlob);
+          }, "image/png", 1.0);
+        }else{
+          canvas.toBlob((blob) => {
+            resolve(blob);
+          }, imageFormat, quality);
+        }
+      })
+    }
+
+    function displayCompressedImage(isPDF,blob){
       const compressedImg = document.getElementById("imageCompressed");
       const pdfContainer = document.getElementById("pdf");
-      if (imageFormat.indexOf("pdf")!= -1) {
-        canvas.toBlob(async (blob) => {
-          console.log(imageFormat);
-          const pdfBlob = await compressUsingDDV(blob,imageFormat,quality);
-          console.log(pdfBlob);
-          const compressedSize = pdfBlob.size;
-          displayCompressionRate(compressedSize);
-          compressedImg.style.display = "none";
-          pdfContainer.style.display = "block";
-          const url = URL.createObjectURL(pdfBlob);
-          pdfContainer.style.width = image.clientWidth + "px";
-          pdfContainer.style.height = image.clientHeight + "px";
-          var options = {
-              title: "My embedded PDF",
-              pdfOpenParams: { view: 'Fit', page: '1' }
-          };
-          PDFObject.embed(url, "#pdf", options);
-        }, imageFormat, quality);
+      if (isPDF) {
+        const compressedSize = blob.size;
+        displayCompressionRate(compressedSize);
+        compressedImg.style.display = "none";
+        pdfContainer.style.display = "block";
+        const url = URL.createObjectURL(blob);
+        pdfContainer.style.width = image.clientWidth + "px";
+        pdfContainer.style.height = image.clientHeight + "px";
+        const options = {
+            title: "My embedded PDF",
+            pdfOpenParams: { view: 'Fit', page: '1' }
+        };
+        PDFObject.embed(url, "#pdf", options);
       }else{
-        canvas.toBlob((blob) => {
-          const compressedSize = blob.size;
-          displayCompressionRate(compressedSize);
-          compressedImg.style.display = "block";
-          pdfContainer.style.display = "none";
-          const url = URL.createObjectURL(blob);
-          compressedImg.src = url;
-        }, imageFormat, quality);
+        const compressedSize = blob.size;
+        displayCompressionRate(compressedSize);
+        compressedImg.style.display = "block";
+        pdfContainer.style.display = "none";
+        const url = URL.createObjectURL(blob);
+        compressedImg.src = url;
       }
+    }
+
+    async function compress(){
+      const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
+      const quality = parseFloat(document.getElementById("qualityInput").value);
+      const colorConversion = document.getElementById("colorConversionSelect").selectedIndex;
+      const blob = await getCompressedBlob(imageFormat,quality,colorConversion);
+      const isPDF = imageFormat.indexOf("pdf") != -1;
+      displayCompressedImage(isPDF,blob);
+    }
+
+    function test(){
+
     }
 
     async function compressUsingDDV(blob,imageFormat,quality){
