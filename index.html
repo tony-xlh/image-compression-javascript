@@ -209,6 +209,10 @@
     }
 
     async function compress(){
+      if (!img.src) {
+        alert("Please load an image");
+        return;
+      }
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
       const quality = parseFloat(document.getElementById("qualityInput").value);
       const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
@@ -219,6 +223,10 @@
     }
 
     async function test(){
+      if (!img.src) {
+        alert("Please load an image");
+        return;
+      }
       if (!doc) {
         await loadDDV();
       }
