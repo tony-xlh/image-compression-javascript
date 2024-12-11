@@ -231,7 +231,7 @@
       }
       showProgress("Testing...");
       const data = [];
-      const qualityArray = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0];
+      
       //const qualityArray = [1.0];
       const imageFormatSelect = document.getElementById("imageFormatSelect");
       const colorConversionSelect = document.getElementById("colorConversionSelect");
@@ -240,6 +240,12 @@
         drawImageWithColorConverted(colorConversionOption.value);
         for (let j = 0; j < imageFormatSelect.options.length; j++) {
           const formatOption = imageFormatSelect.options[j];
+          let qualityArray;
+          if (isQualityNotEffectiveForTheFormat(formatOption.value)) {
+            qualityArray = [1.0];
+          }else{
+            qualityArray = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0];
+          }
           for (const quality of qualityArray) {
             showProgress([formatOption.innerText,quality,colorConversionOption.innerText].join(" "));
             const startTime = new Date().getTime();
@@ -260,6 +266,15 @@
       hideProgress();
       console.log(data);
       displayTestResult(data);
+    }
+
+    function isQualityNotEffectiveForTheFormat(format){
+      const ineffectiveFormats = ["pdf/lzw","pdf/fax4","pdf/jbig2","image/png"];
+      if (ineffectiveFormats.indexOf(format) != -1) {
+        return true;
+      }else{
+        return false;
+      }
     }
 
     function displayTestResult(rows){
