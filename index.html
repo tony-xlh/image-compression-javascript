@@ -133,61 +133,22 @@
     document.getElementById("testButton").addEventListener("click",test)
     loadDDV();
 
-    function drawImageWithColorConverted(colorConversion){
-      let width = img.naturalWidth;
-      let height = img.naturalHeight;
-      let context = canvas.getContext('2d');
-      let maxWidth = document.getElementById("maxResWidthInput").value;
-      if (maxWidth && img.naturalWidth > maxWidth) {
-        width = maxWidth;
-        height = img.naturalHeight * maxWidth / img.naturalWidth;
+    async function getCompressedBlob(imageFormat,quality){
+      let blob;
+      const isPDF = imageFormat.indexOf("pdf") != -1;
+      if (imageFormat === "image/png") {
+        blob = await doc.saveToPng(0,{});
+      }else if (imageFormat === "image/jpeg") {
+        blob = await doc.saveToJpeg(0,{quality: quality});
+      }else if (imageFormat === "image/webp") {
+        let pngBlob = await doc.saveToPng(0,{});
+        console.log(pngBlob);
+        blob = await convertBlobToWebP(pngBlob,parseFloat(document.getElementById("qualityInput").value));
+        console.log(blob);
+      }else if (isPDF) {
+        blob = await doc.saveToPdf([0],{quality: quality,compression:imageFormat});
       }
-      canvas.width = width;
-      canvas.height = height;
-      
-      context.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, canvas.width, canvas.height);
-      
-      if (colorConversion != "0") {
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data; //[r,g,b,a,...]
-        for (var i = 0; i < pixels.length; i += 4) {
-          const red = pixels[i];
-          const green = pixels[i + 1];
-          const blue = pixels[i + 2];
-          const grayscale = RGBToGrayScale(red, green, blue)
-          if (colorConversion === "1") {
-            pixels[i] = grayscale;
-            pixels[i + 1] = grayscale;
-            pixels[i + 2] = grayscale;
-          }else{
-            if (threshold(grayscale)) {
-              pixels[i] = 0;
-              pixels[i + 1] = 0;
-              pixels[i + 2] = 0;
-            }else{
-              pixels[i] = 255;
-              pixels[i + 1] = 255;
-              pixels[i + 2] = 255;
-            }
-          }
-        }
-        context.putImageData(imageData, 0, 0);
-      }
-    }
-
-    function getCompressedBlob(imageFormat,quality){
-      return new Promise((resolve, reject) => {
-        if (imageFormat.indexOf("pdf")!= -1) {
-          canvas.toBlob(async (blob) => {
-            const pdfBlob = await doc.saveToPdf([0],{compression:imageFormat,quality:quality*100});
-            resolve(pdfBlob);
-          }, "image/png", 1.0);
-        }else{
-          canvas.toBlob((blob) => {
-            resolve(blob);
-          }, imageFormat, quality);
-        }
-      })
+      return blob;
     }
 
     function displayCompressedImage(isPDF,blob){
@@ -228,27 +189,14 @@
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
       const quality = parseFloat(document.getElementById("qualityInput").value)*100;
       const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
-      //drawImageWithColorConverted(colorConversion);
+
       if (colorConversion === "1") {
         await performColorConversion(2);
       }else if (colorConversion === "2") {
         await performColorConversion(1);
       }
-      let blob;
+      const blob = await getCompressedBlob(imageFormat,quality);
       const isPDF = imageFormat.indexOf("pdf") != -1;
-      if (imageFormat === "image/png") {
-        blob = await doc.saveToPng(0,{});
-      }else if (imageFormat === "image/jpeg") {
-        blob = await doc.saveToJpeg(0,{quality: quality});
-      }else if (imageFormat === "image/webp") {
-        let pngBlob = await doc.saveToPng(0,{});
-        console.log(pngBlob);
-        blob = await convertBlobToWebP(pngBlob,parseFloat(document.getElementById("qualityInput").value));
-        console.log(blob);
-      }else if (isPDF) {
-        blob = await doc.saveToPdf([0],{quality: quality,compression:imageFormat});
-      }
-      console.log(blob);
       displayCompressedImage(isPDF,blob);
     }
 
@@ -285,7 +233,13 @@
       const colorConversionSelect = document.getElementById("colorConversionSelect");
       for (let i = 0; i < colorConversionSelect.options.length; i++) {
         const colorConversionOption = colorConversionSelect.options[i];
-        drawImageWithColorConverted(colorConversionOption.value);
+        doc.deleteAllPages();
+        await doc.loadSource(imgBlob);
+        if (colorConversionOption.value === "1") {
+          await performColorConversion(2);
+        }else if (colorConversionOption.value === "2") {
+          await performColorConversion(1);
+        }
         for (let j = 0; j < imageFormatSelect.options.length; j++) {
           const formatOption = imageFormatSelect.options[j];
           let qualityArray;
