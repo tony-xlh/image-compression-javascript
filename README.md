@@ -32,7 +32,7 @@ Document scanning and server-side barcode scanning can benefit from this.
 * FAX4 (CCITT-4)
 * JBIG2
 * JP2000
-* LZX
+* LZW
 
 The latter four are mainly used for PDF. We use [Dynamsoft Document Viewer](https://www.dynamsoft.com/document-viewer/docs/introduction/index.html) to get the image compressed in the four types.
 
