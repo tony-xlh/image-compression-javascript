@@ -52,6 +52,11 @@
     .progress-modal.active {
       visibility: inherit;
     }
+
+    #viewer {
+      width: 100%;
+      height: 480px;
+    }
   </style>
 </head>
 <body>
@@ -113,17 +118,21 @@
       <canvas id="canvas"></canvas>
     </div>
     <div id="testResult"></div>
+    <div id="viewer"></div>
     <div class="modal progress-modal"></div>
   </div>
   <script>
     let license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==";
     let doc;
+    let imgBlob;
     let originalSize = 0;
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
+    let editViewer;
     document.getElementById("compressButton").addEventListener("click",compress)
     document.getElementById("testButton").addEventListener("click",test)
-    
+    loadDDV();
+
     function drawImageWithColorConverted(colorConversion){
       let width = img.naturalWidth;
       let height = img.naturalHeight;
@@ -170,7 +179,7 @@
       return new Promise((resolve, reject) => {
         if (imageFormat.indexOf("pdf")!= -1) {
           canvas.toBlob(async (blob) => {
-            const pdfBlob = await compressUsingDDV(blob,imageFormat,quality);
+            const pdfBlob = await doc.saveToPdf([0],{compression:imageFormat,quality:quality*100});
             resolve(pdfBlob);
           }, "image/png", 1.0);
         }else{
@@ -182,6 +191,7 @@
     }
 
     function displayCompressedImage(isPDF,blob){
+      console.log(blob);
       const compressedImg = document.getElementById("imageCompressed");
       const pdfContainer = document.getElementById("pdf");
       if (isPDF) {
@@ -212,22 +222,60 @@
         alert("Please load an image");
         return;
       }
+      doc.deleteAllPages();
+      await doc.loadSource(imgBlob);
+
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
-      const quality = parseFloat(document.getElementById("qualityInput").value);
+      const quality = parseFloat(document.getElementById("qualityInput").value)*100;
       const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
-      drawImageWithColorConverted(colorConversion);
-      const blob = await getCompressedBlob(imageFormat,quality);
+      //drawImageWithColorConverted(colorConversion);
+      if (colorConversion === "1") {
+        await performColorConversion(2);
+      }else if (colorConversion === "2") {
+        await performColorConversion(1);
+      }
+      let blob;
       const isPDF = imageFormat.indexOf("pdf") != -1;
+      if (imageFormat === "image/png") {
+        blob = await doc.saveToPng(0,{});
+      }else if (imageFormat === "image/jpeg") {
+        blob = await doc.saveToJpeg(0,{quality: quality});
+      }else if (imageFormat === "image/webp") {
+        let pngBlob = await doc.saveToPng(0,{});
+        console.log(pngBlob);
+        blob = await convertBlobToWebP(pngBlob,parseFloat(document.getElementById("qualityInput").value));
+        console.log(blob);
+      }else if (isPDF) {
+        blob = await doc.saveToPdf([0],{quality: quality,compression:imageFormat});
+      }
+      console.log(blob);
       displayCompressedImage(isPDF,blob);
+    }
+
+    function convertBlobToWebP(blob,quality){
+      console.log("convertBlobToWebP");
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        let tmpImg = document.createElement("img");
+        tmpImg.onload = function(){
+          let width = tmpImg.naturalWidth;
+          let height = tmpImg.naturalHeight;
+          let context = canvas.getContext('2d');
+          canvas.width = width;
+          canvas.height = height;
+          context.drawImage(tmpImg, 0, 0, tmpImg.naturalWidth, tmpImg.naturalHeight, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob)=>{
+            resolve(blob);
+          },"image/webp",quality)
+        }
+        tmpImg.src = url;
+      })
     }
 
     async function test(){
       if (!img.src) {
         alert("Please load an image");
         return;
-      }
-      if (!doc) {
-        await loadDDV();
       }
       showProgress("Testing...");
       const data = [];
@@ -305,15 +353,6 @@
       document.getElementById("testResult").innerHTML = table;
     }
 
-    async function compressUsingDDV(blob,imageFormat,quality){
-      if (!doc) {
-        await loadDDV();
-      }
-      doc.deleteAllPages()
-      await doc.loadSource(blob);
-      return await doc.saveToPdf([0],{compression:imageFormat,quality:quality*100});
-    }
-
 
     function fileSelected(){
       let fileInput = document.getElementById("fileInput");
@@ -323,8 +362,9 @@
       }
       let file = files[0];
       let fileReader = new FileReader();
-      fileReader.onload = function(e){
+      fileReader.onload = async function(e){
         let blob = new Blob([fileReader.result]);
+        imgBlob = blob;
         originalSize = blob.size;
         let img = document.getElementById("image");
         const url = URL.createObjectURL(blob);
@@ -375,6 +415,12 @@
       await Dynamsoft.DDV.Core.init();
       const docManager = Dynamsoft.DDV.documentManager;
       doc = docManager.createDocument();
+      const imageFilter = new Dynamsoft.DDV.ImageFilter();
+      Dynamsoft.DDV.setProcessingHandler("imageFilter", imageFilter);
+      editViewer = new Dynamsoft.DDV.EditViewer({
+        container: document.getElementById("viewer"),
+      });
+      editViewer.openDocument(doc.uid);
     }
 
     function loadLibrary(src,type,id,data){
@@ -400,6 +446,15 @@
           reject(ev);
         });
       });
+    }
+
+    async function performColorConversion(type){
+      const pageUid = doc.pages[0];
+      const pageData = await doc.getPageData(pageUid)
+      const imageProcess = Dynamsoft.DDV.Experiments.get("ImageProcess");
+      const result = await imageProcess.process({type:3, data:pageData.display.data}, {type: type/*1: blackAndWhite 2: gray*/, params:{saveInk:false, level:1}});
+      const newImage = new Blob([result.output],{type:result.outputContentType});
+      await doc.updatePage(pageUid, newImage, {});
     }
 
     function loadStyle(url) {
