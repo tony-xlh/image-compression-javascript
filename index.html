@@ -139,15 +139,15 @@
       if (imageFormat === "image/png") {
         blob = await doc.saveToPng(0,{});
       }else if (imageFormat === "image/jpeg") {
-        blob = await doc.saveToJpeg(0,{quality: quality});
+        blob = await doc.saveToJpeg(0,{quality: quality*100});
+        console.log({quality: quality*100});
       }else if (imageFormat === "image/webp") {
         let pngBlob = await doc.saveToPng(0,{});
-        console.log(pngBlob);
-        blob = await convertBlobToWebP(pngBlob,parseFloat(document.getElementById("qualityInput").value));
-        console.log(blob);
+        blob = await convertBlobToWebP(pngBlob,quality);
       }else if (isPDF) {
-        blob = await doc.saveToPdf([0],{quality: quality,compression:imageFormat});
+        blob = await doc.saveToPdf([0],{quality: quality*100,compression:imageFormat});
       }
+      console.log(blob);
       return blob;
     }
 
@@ -187,7 +187,7 @@
       await doc.loadSource(imgBlob);
 
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
-      const quality = parseFloat(document.getElementById("qualityInput").value)*100;
+      const quality = parseFloat(document.getElementById("qualityInput").value);
       const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
 
       if (colorConversion === "1") {
@@ -195,7 +195,9 @@
       }else if (colorConversion === "2") {
         await performColorConversion(1);
       }
+
       const blob = await getCompressedBlob(imageFormat,quality);
+
       const isPDF = imageFormat.indexOf("pdf") != -1;
       displayCompressedImage(isPDF,blob);
     }
@@ -357,15 +359,15 @@
 
     async function loadDDV(){
       showProgress("Loading Dynamsoft Document Viewer...");
-      await loadLibrary("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/ddv.js","text/javascript");
-      await loadStyle("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/ddv.css");
+      await loadLibrary("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@1.1.0/dist/ddv.js","text/javascript");
+      await loadStyle("https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@1.1.0/dist/ddv.css");
       await initDDV();
       hideProgress();
     }
 
     async function initDDV(){
       Dynamsoft.DDV.Core.license = license;
-      Dynamsoft.DDV.Core.engineResourcePath = "https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@2.1.0/dist/engine";// Lead to a folder containing the distributed WASM files
+      Dynamsoft.DDV.Core.engineResourcePath = "https://cdn.jsdelivr.net/npm/dynamsoft-document-viewer@1.1.0/dist/engine";// Lead to a folder containing the distributed WASM files
       await Dynamsoft.DDV.Core.init();
       const docManager = Dynamsoft.DDV.documentManager;
       doc = docManager.createDocument();
