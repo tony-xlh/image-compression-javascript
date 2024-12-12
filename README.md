@@ -13,6 +13,10 @@ It can run a batch test to get an idea of how those aspects can impact the final
 
 [Online demo](https://tony-xlh.github.io/image-compression-javascript/)
 
+[Online demo using canvas](https://tony-xlh.github.io/image-compression-javascript/canvas.html)
+
+The major demo uses [Dynamsoft Document Viewer](https://www.dynamsoft.com/document-viewer/docs/introduction/index.html) to perform color conversion, resizing and saving. It has some benefits over HTML5 canvas. For example, if we convert the image into black & white, using Dynamsoft Document Viewer, we can save the image as a 1-bit depth image file to save storage.
+
 ## Usage
 
 We can compress images to save storage and improve the performance of uploading an image.
