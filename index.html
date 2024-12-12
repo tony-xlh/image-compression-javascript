@@ -185,7 +185,12 @@
       }
       doc.deleteAllPages();
       await doc.loadSource(imgBlob);
-
+      let maxWidth = document.getElementById("maxResWidthInput").value;
+      if (maxWidth && img.naturalWidth > maxWidth) {
+        let newWidth = maxWidth;
+        let newHeight = img.naturalHeight * maxWidth / img.naturalWidth;
+        await performResize(newWidth, newHeight);
+      }
       const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
       const quality = parseFloat(document.getElementById("qualityInput").value);
       const colorConversion = document.getElementById("colorConversionSelect").selectedOptions[0].value;
@@ -409,6 +414,15 @@
       const pageData = await doc.getPageData(pageUid)
       const imageProcess = Dynamsoft.DDV.Experiments.get("ImageProcess");
       const result = await imageProcess.process({type:3, data:pageData.display.data}, {type: type/*1: blackAndWhite 2: gray*/, params:{saveInk:false, level:1}});
+      const newImage = new Blob([result.output],{type:result.outputContentType});
+      await doc.updatePage(pageUid, newImage, {});
+    }
+
+    async function performResize(newWidth,newHeight){
+      const pageUid = doc.pages[0];
+      const pageData = await doc.getPageData(pageUid)
+      const imageProcess = Dynamsoft.DDV.Experiments.get("ImageProcess");
+      const result = await imageProcess.process({type:3, data:pageData.display.data}, {type:13/*resize*/, params:{newWidth:newWidth, newHeight:newHeight, mode:2}});
       const newImage = new Blob([result.output],{type:result.outputContentType});
       await doc.updatePage(pageUid, newImage, {});
     }
