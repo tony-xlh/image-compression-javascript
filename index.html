@@ -98,6 +98,8 @@
       </label>
     </div>
     <button id="compressButton">Compress</button>
+    <input id="multipleFileInput" type="file" multiple onchange="multipleFilesSelected();" style="display:none;"/>
+    <button id="batchCompressButton">Batch Compress</button>
     <button id="testButton">Run Test</button>
     <div class="comparison">
       <div class="original">
@@ -129,8 +131,10 @@
     let canvas = document.getElementById("canvas");
     let img = document.getElementById("image");
     let editViewer;
-    document.getElementById("compressButton").addEventListener("click",compress)
-    document.getElementById("testButton").addEventListener("click",test)
+    document.getElementById("compressButton").addEventListener("click",compress);
+    document.getElementById("batchCompressButton").addEventListener("click",triggerMultipleFilesSelection);
+    document.getElementById("testButton").addEventListener("click",test);
+    
     loadDDV();
 
     async function getCompressedBlob(imageFormat,quality){
@@ -183,6 +187,14 @@
         alert("Please load an image");
         return;
       }
+      const blob = await compressImpl();
+      const imageFormat = document.getElementById("imageFormatSelect").selectedOptions[0].value;
+      const isPDF = imageFormat.indexOf("pdf") != -1;
+      displayCompressedImage(isPDF,blob);
+      return blob;
+    }
+
+    async function compressImpl(){
       doc.deleteAllPages();
       await doc.loadSource(imgBlob);
       let maxWidth = document.getElementById("maxResWidthInput").value;
@@ -202,9 +214,27 @@
       }
 
       const blob = await getCompressedBlob(imageFormat,quality);
+      return blob;
+    }
 
-      const isPDF = imageFormat.indexOf("pdf") != -1;
-      displayCompressedImage(isPDF,blob);
+    //1.jpg -> 1.webp
+    function getFilenameForDownload(filename){
+      let pureFilename = getFilenameWithoutExtension(filename);
+      let extension = ".pdf";
+      const imageFormatOption = document.getElementById("imageFormatSelect").selectedOptions[0];
+      if (imageFormatOption.value.indexOf("image") != -1) {
+        extension = "."+imageFormatOption.innerText.toLowerCase();
+      }
+      return pureFilename + extension;
+    }
+
+    function getFilenameWithoutExtension(filename){
+      let index = filename.lastIndexOf(".");
+      return filename.substring(0,index);
+    }
+
+    function triggerMultipleFilesSelection(){
+      document.getElementById("multipleFileInput").click();
     }
 
     function convertBlobToWebP(blob,quality){
@@ -314,6 +344,67 @@
       document.getElementById("testResult").innerHTML = table;
     }
 
+    async function multipleFilesSelected(){
+      let fileInput = document.getElementById("multipleFileInput");
+      let files = fileInput.files;
+      console.log(files);
+      if (files.length == 0) {
+        return;
+      }
+      for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+        await readFileAsBlob(file);
+        const imgURL = URL.createObjectURL(imgBlob);
+        img = await loadImage(imgURL);
+        let compressed = await compressImpl();
+        let filename = getFilenameForDownload(file.name)
+        await download(compressed,filename);
+        sleep(500);
+      }
+    }
+
+    function loadImage(src){
+      return new Promise((resolve, reject) => {
+        let newImage = new Image();
+        newImage.onload = function(){
+          resolve(newImage);
+        }
+        newImage.src = src;
+      })
+    }
+    
+    function readFileAsBlob(file){
+      return new Promise((resolve, reject) => {
+        let fileReader = new FileReader();
+        fileReader.onload = async function(e){
+          let blob = new Blob([fileReader.result]);
+          imgBlob = blob;
+          originalSize = blob.size;
+          resolve(blob);
+        };
+        fileReader.onerror = function () {
+          console.warn('oops, something went wrong.');
+        };
+        fileReader.readAsArrayBuffer(file);
+      })
+    }
+
+    function sleep(time){
+      return new Promise(function(resolve){
+        setTimeout(resolve, time);
+      });
+    }
+
+    async function download(blob,filename){
+      const imageURL = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = imageURL;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(imageURL);
+    }
 
     function fileSelected(){
       let fileInput = document.getElementById("fileInput");
